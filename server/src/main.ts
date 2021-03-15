@@ -1,17 +1,9 @@
-// IMPORTA A FUNÇÃO INIT E A APELIDA DE INITDATABASE DO ARQUIVO `DATABASE.TS`, 
-// NOTE QUE A EXTENSÃO `.TS` É OMITIDA AQUI.
 import { init as initDatabase } from "./database";
-
-// *
 import express from "express";
-
-// *
 import bodyParser from "body-parser";
 
-// *
 const app = express();
 
-// *
 app.use(function (request, response, next) {
     response.header('Access-Control-Allow-Origin', '*');
     response.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
@@ -19,66 +11,84 @@ app.use(function (request, response, next) {
     next();
 });
 
-// *
 app.use(bodyParser.json());
 
-// CRIA UMA FUNÇÃO ASSÍNCRONA CHAMADA INIT() (NÃO CONFUNDIR COM A INIT DO 
-// ARQUIVO DATABASE.TS) ESTA FUNÇÃO FOI CRIADA PARA QUE POSSAMOS MANIPULAR 
-// EXECUÇÕES ASSÍNCRONAS UTILIZANDO AS PALAVRAS RESERVADAS ASYNC E AWAIT 
-// FACILITANDO O ENTENDIMENTO DO CÓDIGO.
 async function init() {
-    // AGUARDA A EXECUÇÃO DA FUNÇÃO `INIT()` DO ARQUIVO `DATABASE.TS` E ARMAZENA 
-    // O RETORNO DA FUNÇÃO NA CONSTANTE `DB`.
     const db = await initDatabase();
 
-    // **
-    app.get('/pessoa', function (request, response) {
-        const responseData = {
-            teste: "buscar dados de todas as pessoas pessoas"
-        };
+    app.get('/pessoa', async function (request, response) {
+        const responseData = await db.all("SELECT * FROM pessoa");
         response.json(responseData);
     });
 
-    // **
-    app.post('/pessoa', function (request, response) {
-        const responseData = {
-            teste: "adicionar dados de pessoa no banco de dados",
-            vindoDoCliente: request.body
-        };
-        response.json(responseData);
+    app.post('/pessoa', async function (request, response) {
+        if (!request.body.nome || !request.body.sobrenome || !request.body.apelido) {
+            response.json({ error: "dados incompletos." });
+            return;
+        }
+
+        try {
+            const responseData = await db.run(
+                "INSERT INTO pessoa(nome, sobrenome, apelido) VALUES(:nome, :sobrenome, :apelido)",
+                {
+                    ":nome": request.body.nome,
+                    ":sobrenome": request.body.sobrenome,
+                    ":apelido": request.body.apelido
+                }
+            );
+            response.json(responseData);
+        } catch (e) {
+            response.json({ error: "database error", detail: e });
+        }
     });
 
-    // **
-    app.get('/pessoa/:id', function (request, response) {
-        const responseData = {
-            id: request.params.id,
-            teste: "buscar dados de uma pessoa específica"
-        };
-        response.json(responseData);
+    app.get('/pessoa/:id', async function (request, response) {
+        const responseData = await db.get("SELECT * FROM pessoa WHERE id=? LIMIT 1", request.params.id);
+
+        if (responseData == undefined) {
+            response.json({ error: "Pessoa não encontrada." });
+        } else {
+            response.json(responseData);
+        }
     });
 
-    // **
-    app.put('/pessoa/:id', function (request, response) {
-        const responseData = {
-            id: request.params.id,
-            teste: "atualiza dados de uma pessoa específica",
-            vindoDoCliente: request.body
-        };
-        response.json(responseData);
+    app.put('/pessoa/:id', async function (request, response) {
+        if (!request.body.nome || !request.body.sobrenome || !request.body.apelido) {
+            response.json({ error: "dados incompletos." });
+            return;
+        }
+
+        try {
+            const responseData = await db.run(
+                "UPDATE pessoa SET nome=:nome, sobrenome=:sobrenome, apelido=:apelido WHERE id=:id",
+                {
+                    ":id": request.params.id,
+                    ":nome": request.body.nome,
+                    ":sobrenome": request.body.sobrenome,
+                    ":apelido": request.body.apelido
+                }
+            );
+
+            if (responseData == undefined) {
+                response.json({ error: "Pessoa não encontrada." });
+            } else {
+                response.json(responseData);
+            }
+        } catch (e) {
+            response.json({ error: "database error", detail: e });
+        }
     });
 
-    // **
-    app.delete('/pessoa/:id', function (request, response) {
-        const responseData = {
-            id: request.params.id,
-            teste: "exclui dados de uma pessoa específica",
-        };
-        response.json(responseData);
+    app.delete('/pessoa/:id', async function (request, response) {
+        const responseData = await db.run("DELETE FROM pessoa WHERE id=?", request.params.id);
+        if (responseData.changes == 0) {
+            response.json({ error: "Pessoa não encontrada." });
+        } else {
+            response.json(responseData);
+        }
     });
 
-    // **
     app.listen(8081, () => console.log("running..."));
 }
 
-// EXECUTA A FUNÇÃO INIT() DESTE ARQUIVO.
 init();
