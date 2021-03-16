@@ -1,0 +1,5 @@
+body {
+    &::before {
+        content: "Olá mundo do main.scss ... ";
+    }
+}
